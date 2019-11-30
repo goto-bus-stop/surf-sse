@@ -72,6 +72,18 @@ impl std::error::Error for Error {}
 type EventStream = sse_codec::DecodeStream<surf::Response>;
 type ConnectionFuture = Pin<Box<dyn Future<Output = Result<surf::Response, surf::Exception>> + Unpin>>;
 
+/// Represents the internal state machine.
+enum ConnectState {
+    /// We're receiving messages.
+    Streaming(EventStream),
+    /// We're connecting to the endpoint.
+    Connecting(ConnectionFuture),
+    /// We're waiting to retry.
+    WaitingToRetry(Delay),
+    /// We're not doing anything. Currently only used as a default value. This can be used for the Closed state later.
+    Idle,
+}
+
 /// A Server-Sent Events/Event Sourcing client, similar to [`EventSource`][EventSource] in the browser.
 ///
 /// [EventSource]: https://developer.mozilla.org/en-US/docs/Web/API/EventSource
@@ -79,11 +91,7 @@ pub struct EventSource {
     url: Url,
     retry_time: Duration,
     last_event_id: Option<String>,
-    // This could/should be an enum instead, because only one of these three properties should be
-    // active at a time.
-    event_stream: Option<EventStream>,
-    connecting: Option<ConnectionFuture>,
-    timer: Option<Delay>,
+    state: ConnectState,
 }
 
 impl EventSource {
@@ -93,9 +101,7 @@ impl EventSource {
             url,
             retry_time: Duration::from_secs(3),
             last_event_id: None,
-            event_stream: None,
-            connecting: None,
-            timer: None,
+            state: ConnectState::Idle,
         };
         client.start_connect();
         client
@@ -108,11 +114,10 @@ impl EventSource {
 
     /// Get the state of the connection. See the documentation for `ReadyState`.
     pub fn ready_state(&self) -> ReadyState {
-        if self.event_stream.is_some() {
-            ReadyState::Open
-        } else {
-            // We're either connecting or waiting for the retry timer.
-            ReadyState::Connecting
+        match self.state {
+            ConnectState::Streaming(_) => ReadyState::Open,
+            ConnectState::Connecting(_) | ConnectState::WaitingToRetry(_) => ReadyState::Connecting,
+            ConnectState::Idle => unreachable!("ReadyState::Closed"),
         }
     }
 
@@ -134,15 +139,15 @@ impl EventSource {
             Some(id) => request.set_header("Last-Event-ID", id),
             None => request,
         };
-        self.connecting = Some(Box::pin(request));
+        self.state = ConnectState::Connecting(Box::pin(request));
     }
 
     fn start_retry(&mut self) {
-        self.timer = Some(Delay::new(self.retry_time));
+        self.state = ConnectState::WaitingToRetry(Delay::new(self.retry_time));
     }
 
     fn start_receiving(&mut self, response: surf::Response) {
-        self.event_stream = Some(sse_codec::decode_stream(response));
+        self.state = ConnectState::Streaming(sse_codec::decode_stream(response));
     }
 }
 
@@ -150,72 +155,66 @@ impl Stream for EventSource {
     type Item = Result<Event, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(event_stream) = &mut self.event_stream {
-            return match event_stream.poll_next_unpin(cx) {
-                Poll::Pending => Poll::Pending,
-                Poll::Ready(Some(Ok(event))) => {
-                    match event {
-                        sse_codec::Event::Message { event, data } => {
-                            Poll::Ready(Some(Ok(Event { event, data })))
+        match &mut self.state {
+            ConnectState::Streaming(event_stream) => {
+                match event_stream.poll_next_unpin(cx) {
+                    Poll::Pending => Poll::Pending,
+                    Poll::Ready(Some(Ok(event))) => {
+                        match event {
+                            sse_codec::Event::Message { event, data } => {
+                                Poll::Ready(Some(Ok(Event { event, data })))
+                            }
+                            sse_codec::Event::Retry { retry } => {
+                                self.retry_time = Duration::from_millis(retry);
+                                Poll::Pending
+                            }
+                            sse_codec::Event::LastEventId { id } => {
+                                self.last_event_id = if id.is_empty() { None } else { Some(id) };
+                                Poll::Pending
+                            }
                         }
-                        sse_codec::Event::Retry { retry } => {
-                            self.retry_time = Duration::from_millis(retry);
-                            Poll::Pending
-                        }
-                        sse_codec::Event::LastEventId { id } => {
-                            self.last_event_id = if id.is_empty() { None } else { Some(id) };
-                            Poll::Pending
-                        }
+                    },
+                    Poll::Ready(Some(Err(_))) => {
+                        // we care even less about "incorrect" messages than sse_codec does!
+                        Poll::Pending
+                    },
+                    // Clients will reconnect if the connection is closed.
+                    Poll::Ready(None) => {
+                        self.start_retry();
+                        let error = Error::Retry;
+                        Poll::Ready(Some(Err(error)))
                     }
-                },
-                Poll::Ready(Some(Err(_))) => {
-                    // we care even less about "incorrect" messages than sse_codec does!
-                    Poll::Pending
-                },
-                // Clients will reconnect if the connection is closed.
-                Poll::Ready(None) => {
-                    self.event_stream.take();
-                    self.start_retry();
-                    let error = Error::Retry;
-                    Poll::Ready(Some(Err(error)))
-                }
-            };
-        }
-
-        if let Some(timer) = &mut self.timer {
-            match timer.poll_unpin(cx) {
-                Poll::Pending => (),
-                Poll::Ready(()) => {
-                    self.timer.take();
-                    self.start_connect();
                 }
             }
-            return Poll::Pending;
-        }
 
-        if let Some(connecting) = &mut self.connecting {
-            match connecting.poll_unpin(cx) {
-                Poll::Pending => (),
-                Poll::Ready(Ok(response)) => {
-                    self.connecting.take();
+            ConnectState::WaitingToRetry(timer) => {
+                match timer.poll_unpin(cx) {
+                    Poll::Pending => (),
+                    Poll::Ready(()) => {
+                        self.start_connect();
+                    }
+                }
+                Poll::Pending
+            }
 
+            ConnectState::Connecting(connecting) => {
+                match connecting.poll_unpin(cx) {
+                    Poll::Pending => Poll::Pending,
                     // A client can be told to stop reconnecting using the HTTP 204 No Content response code.
-                    if response.status() == 204 {
-                        return Poll::Ready(None);
+                    Poll::Ready(Ok(response)) if response.status() == 204 => Poll::Ready(None),
+                    Poll::Ready(Ok(response)) => {
+                        self.start_receiving(response);
+                        Poll::Pending
                     }
-
-                    self.start_receiving(response);
-                }
-                Poll::Ready(Err(error)) => {
-                    self.connecting.take();
-                    self.start_retry();
-                    let error = Error::ConnectionError(error);
-                    return Poll::Ready(Some(Err(error)));
+                    Poll::Ready(Err(error)) => {
+                        self.start_retry();
+                        let error = Error::ConnectionError(error);
+                        Poll::Ready(Some(Err(error)))
+                    }
                 }
             }
-            return Poll::Pending;
-        }
 
-        unreachable!();
+            ConnectState::Idle => unreachable!()
+        }
     }
 }
