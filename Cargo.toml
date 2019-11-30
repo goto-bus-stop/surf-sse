@@ -1,0 +1,20 @@
+[package]
+name = "surf-sse"
+description = "Server-Sent Events client using Surf"
+version = "0.1.0"
+authors = ["Renée Kooi <renee@kooi.me>"]
+edition = "2018"
+license = "MPL-2.0"
+homepage = "https://github.com/goto-bus-stop/surf-sse"
+repository = "https://github.com/goto-bus-stop/surf-sse"
+readme = "README.md"
+
+[dependencies]
+sse-codec = { path = "../sse-codec" }
+surf = { git = "https://github.com/http-rs/surf" }
+futures-core = "0.3.1"
+futures-timer = "2.0.2"
+futures-util = "0.3.1"
+
+[dev-dependencies]
+async-std = "1.1.0"
