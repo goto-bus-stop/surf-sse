@@ -1,5 +1,5 @@
 use futures_util::stream::StreamExt;
-use surf_sse::{EventSource, Error};
+use surf_sse::{Error, EventSource};
 
 async fn amain() {
     let mut client = EventSource::new(

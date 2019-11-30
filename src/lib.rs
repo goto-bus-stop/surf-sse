@@ -70,7 +70,8 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 type EventStream = sse_codec::DecodeStream<surf::Response>;
-type ConnectionFuture = Pin<Box<dyn Future<Output = Result<surf::Response, surf::Exception>> + Unpin>>;
+type ConnectionFuture =
+    Pin<Box<dyn Future<Output = Result<surf::Response, surf::Exception>> + Unpin>>;
 
 /// Represents the internal state machine.
 enum ConnectState {
@@ -159,25 +160,23 @@ impl Stream for EventSource {
             ConnectState::Streaming(event_stream) => {
                 match event_stream.poll_next_unpin(cx) {
                     Poll::Pending => Poll::Pending,
-                    Poll::Ready(Some(Ok(event))) => {
-                        match event {
-                            sse_codec::Event::Message { event, data } => {
-                                Poll::Ready(Some(Ok(Event { event, data })))
-                            }
-                            sse_codec::Event::Retry { retry } => {
-                                self.retry_time = Duration::from_millis(retry);
-                                Poll::Pending
-                            }
-                            sse_codec::Event::LastEventId { id } => {
-                                self.last_event_id = if id.is_empty() { None } else { Some(id) };
-                                Poll::Pending
-                            }
+                    Poll::Ready(Some(Ok(event))) => match event {
+                        sse_codec::Event::Message { event, data } => {
+                            Poll::Ready(Some(Ok(Event { event, data })))
+                        }
+                        sse_codec::Event::Retry { retry } => {
+                            self.retry_time = Duration::from_millis(retry);
+                            Poll::Pending
+                        }
+                        sse_codec::Event::LastEventId { id } => {
+                            self.last_event_id = if id.is_empty() { None } else { Some(id) };
+                            Poll::Pending
                         }
                     },
                     Poll::Ready(Some(Err(_))) => {
                         // we care even less about "incorrect" messages than sse_codec does!
                         Poll::Pending
-                    },
+                    }
                     // Clients will reconnect if the connection is closed.
                     Poll::Ready(None) => {
                         self.start_retry();
@@ -214,7 +213,7 @@ impl Stream for EventSource {
                 }
             }
 
-            ConnectState::Idle => unreachable!()
+            ConnectState::Idle => unreachable!(),
         }
     }
 }
