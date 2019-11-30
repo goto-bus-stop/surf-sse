@@ -69,7 +69,7 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-type EventStream = Pin<Box<sse_codec::DecodeStream<surf::Response>>>;
+type EventStream = sse_codec::DecodeStream<surf::Response>;
 type ConnectionFuture = Pin<Box<dyn Future<Output = Result<surf::Response, surf::Exception>> + Unpin>>;
 
 /// A Server-Sent Events/Event Sourcing client, similar to [`EventSource`][EventSource] in the browser.
@@ -142,7 +142,7 @@ impl EventSource {
     }
 
     fn start_receiving(&mut self, response: surf::Response) {
-        self.event_stream = Some(Box::pin(sse_codec::decode_stream(response)));
+        self.event_stream = Some(sse_codec::decode_stream(response));
     }
 }
 
