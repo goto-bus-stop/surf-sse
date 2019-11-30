@@ -69,11 +69,28 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// Wrapper for a dynamic Future type that adds an opaque Debug implementation.
+struct DynDebugFuture<T>(Pin<Box<dyn Future<Output = T> + Unpin>>);
+impl<T> Future for DynDebugFuture<T> {
+    type Output = T;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx)
+    }
+}
+
+impl<T> fmt::Debug for DynDebugFuture<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        stringify!(T);
+        write!(f, "[opaque Future type]")
+    }
+}
+
 type EventStream = sse_codec::DecodeStream<surf::Response>;
-type ConnectionFuture =
-    Pin<Box<dyn Future<Output = Result<surf::Response, surf::Exception>> + Unpin>>;
+type ConnectionFuture = DynDebugFuture<Result<surf::Response, surf::Exception>>;
 
 /// Represents the internal state machine.
+#[derive(Debug)]
 enum ConnectState {
     /// We're receiving messages.
     Streaming(EventStream),
@@ -88,6 +105,7 @@ enum ConnectState {
 /// A Server-Sent Events/Event Sourcing client, similar to [`EventSource`][EventSource] in the browser.
 ///
 /// [EventSource]: https://developer.mozilla.org/en-US/docs/Web/API/EventSource
+#[derive(Debug)]
 pub struct EventSource {
     url: Url,
     retry_time: Duration,
@@ -140,7 +158,7 @@ impl EventSource {
             Some(id) => request.set_header("Last-Event-ID", id),
             None => request,
         };
-        self.state = ConnectState::Connecting(Box::pin(request));
+        self.state = ConnectState::Connecting(DynDebugFuture(Box::pin(request)));
     }
 
     fn start_retry(&mut self) {
