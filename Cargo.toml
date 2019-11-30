@@ -10,7 +10,7 @@ repository = "https://github.com/goto-bus-stop/surf-sse"
 readme = "README.md"
 
 [dependencies]
-sse-codec = { path = "../sse-codec" }
+sse-codec = { git = "https://github.com/goto-bus-stop/sse-codec", branch = "default" }
 surf = { git = "https://github.com/http-rs/surf" }
 futures-core = "0.3.1"
 futures-timer = "2.0.2"
