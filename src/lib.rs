@@ -180,28 +180,23 @@ impl Stream for EventSource {
                     Poll::Pending => Poll::Pending,
                     Poll::Ready(Some(Ok(event))) => match event {
                         sse_codec::Event::Message { event, data } => {
-                            cx.waker().wake_by_ref();
                             Poll::Ready(Some(Ok(Event { event, data })))
                         }
                         sse_codec::Event::Retry { retry } => {
                             self.retry_time = Duration::from_millis(retry);
-                            cx.waker().wake_by_ref();
                             Poll::Pending
                         }
                         sse_codec::Event::LastEventId { id } => {
                             self.last_event_id = if id.is_empty() { None } else { Some(id) };
-                            cx.waker().wake_by_ref();
                             Poll::Pending
                         }
                     },
                     Poll::Ready(Some(Err(_))) => {
                         // we care even less about "incorrect" messages than sse_codec does!
-                        cx.waker().wake_by_ref();
                         Poll::Pending
                     }
                     // Clients will reconnect if the connection is closed.
                     Poll::Ready(None) => {
-                        cx.waker().wake_by_ref();
                         self.start_retry();
                         let error = Error::Retry;
                         Poll::Ready(Some(Err(error)))
@@ -212,10 +207,7 @@ impl Stream for EventSource {
             ConnectState::WaitingToRetry(timer) => {
                 match timer.poll_unpin(cx) {
                     Poll::Pending => (),
-                    Poll::Ready(()) => {
-                        self.start_connect();
-                        cx.waker().wake_by_ref();
-                    }
+                    Poll::Ready(()) => self.start_connect(),
                 }
                 Poll::Pending
             }
@@ -227,12 +219,10 @@ impl Stream for EventSource {
                     Poll::Ready(Ok(response)) if response.status() == 204 => Poll::Ready(None),
                     Poll::Ready(Ok(response)) => {
                         self.start_receiving(response);
-                        cx.waker().wake_by_ref();
                         Poll::Pending
                     }
                     Poll::Ready(Err(error)) => {
                         self.start_retry();
-                        cx.waker().wake_by_ref();
                         let error = Error::ConnectionError(error);
                         Poll::Ready(Some(Err(error)))
                     }
