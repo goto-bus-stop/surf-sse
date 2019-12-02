@@ -81,7 +81,6 @@ impl<T> Future for DynDebugFuture<T> {
 
 impl<T> fmt::Debug for DynDebugFuture<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        stringify!(T);
         write!(f, "[opaque Future type]")
     }
 }
