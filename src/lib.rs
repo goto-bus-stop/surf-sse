@@ -152,12 +152,11 @@ impl EventSource {
     }
 
     fn start_connect(&mut self) {
-        let request = surf::get(&self.url);
+        let mut request = surf::get(&self.url);
         // If the EventSource object's last event ID string is not the empty string, set `Last-Event-ID`/last event ID string, encoded as UTF-8, in request's header list.
-        let request = match &self.last_event_id {
-            Some(id) => request.set_header("Last-Event-ID", id),
-            None => request,
-        };
+        if let Some(id) = &self.last_event_id {
+            request = request.set_header("Last-Event-ID", id);
+        }
         self.state = ConnectState::Connecting(DynDebugFuture(Box::pin(request)));
     }
 
