@@ -12,8 +12,6 @@
 
 use futures_core::stream::Stream;
 use futures_timer::Delay;
-use futures_util::future::FutureExt;
-use futures_util::stream::StreamExt;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -174,7 +172,7 @@ impl Stream for EventSource {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match &mut self.state {
             ConnectState::Streaming(event_stream) => {
-                match event_stream.poll_next_unpin(cx) {
+                match Pin::new(event_stream).poll_next(cx) {
                     Poll::Pending => Poll::Pending,
                     Poll::Ready(Some(Ok(event))) => match event {
                         sse_codec::Event::Message { event, data } => {
@@ -203,7 +201,7 @@ impl Stream for EventSource {
             }
 
             ConnectState::WaitingToRetry(timer) => {
-                match timer.poll_unpin(cx) {
+                match Pin::new(timer).poll(cx) {
                     Poll::Pending => (),
                     Poll::Ready(()) => self.start_connect(),
                 }
@@ -211,7 +209,7 @@ impl Stream for EventSource {
             }
 
             ConnectState::Connecting(connecting) => {
-                match connecting.poll_unpin(cx) {
+                match Pin::new(connecting).poll(cx) {
                     Poll::Pending => Poll::Pending,
                     // A client can be told to stop reconnecting using the HTTP 204 No Content response code.
                     Poll::Ready(Ok(response)) if response.status() == 204 => Poll::Ready(None),
