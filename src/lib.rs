@@ -175,15 +175,12 @@ impl Stream for EventSource {
                 match Pin::new(event_stream).poll_next(cx) {
                     Poll::Pending => Poll::Pending,
                     Poll::Ready(Some(Ok(event))) => match event {
-                        sse_codec::Event::Message { event, data } => {
+                        sse_codec::Event::Message { id, event, data } => {
+                            self.last_event_id = id;
                             Poll::Ready(Some(Ok(Event { event, data })))
                         }
                         sse_codec::Event::Retry { retry } => {
                             self.retry_time = Duration::from_millis(retry);
-                            Poll::Pending
-                        }
-                        sse_codec::Event::LastEventId { id } => {
-                            self.last_event_id = if id.is_empty() { None } else { Some(id) };
                             Poll::Pending
                         }
                     },
