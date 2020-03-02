@@ -88,6 +88,7 @@ type ConnectionFuture = DynDebugFuture<Result<surf::Response, surf::Exception>>;
 
 /// Represents the internal state machine.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)] // `EventStream` is large but it's the active one most of the time
 enum ConnectState {
     /// We're receiving messages.
     Streaming(EventStream),
