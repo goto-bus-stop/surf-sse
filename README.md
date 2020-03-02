@@ -10,7 +10,7 @@ On [docs.rs](https://docs.rs/surf-sse).
 In Cargo.toml:
 ```toml
 [dependencies]
-surf-sse = "^0.1.0"
+surf-sse = { git = "https://github.com/goto-bus-stop/surf-sse" }
 ```
 
 ## License
