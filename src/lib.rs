@@ -1,5 +1,22 @@
 //! An implementation of the [EventSource][] API using [Surf][].
 //!
+//! # Examples
+//! ```rust,no_run
+//! # use surf::url::Url;
+//! # async_std::task::block_on(async move {
+//! #
+//! use futures_util::stream::TryStreamExt; // for try_next()
+//! use surf_sse::EventSource;
+//!
+//! let mut events = EventSource::new(Url::parse("https://hub.u-wave.net/events").unwrap());
+//!
+//! while let Some(message) = events.try_next().await.unwrap() {
+//!     dbg!(message);
+//! }
+//! #
+//! # });
+//! ```
+//!
 //! [EventSource]: https://developer.mozilla.org/en-US/docs/Web/API/EventSource
 //! [Surf]: https://github.com/http-rs/surf
 
@@ -17,7 +34,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use surf::url::Url;
+pub use surf::url::Url;
 
 /// An event.
 #[derive(Debug, Clone, PartialEq, Eq)]
