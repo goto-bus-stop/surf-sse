@@ -1,5 +1,15 @@
 //! An implementation of the [EventSource][] API using [Surf][].
 //!
+//! # Logging
+//!
+//! [`surf-sse`][surf-sse] uses the [`log`][log] crate for some rudimentary connection logging. If you need to debug
+//! an EventSource connection, enable trace logging for the `surf-sse` target. For example, with
+//! [`env_logger`][env_logger]:
+//! ```bash
+//! RUST_LOG=surf-sse=trace \
+//! cargo run
+//! ```
+//!
 //! # Examples
 //! ```rust,no_run
 //! # use surf::url::Url;
@@ -19,6 +29,9 @@
 //!
 //! [EventSource]: https://developer.mozilla.org/en-US/docs/Web/API/EventSource
 //! [Surf]: https://github.com/http-rs/surf
+//! [surf-sse]: https://github.com/goto-bus-stop/surf-sse
+//! [log]: https://docs.rs/log
+//! [env_logger]: https://docs.rs/env_logger
 
 #![deny(future_incompatible)]
 #![deny(nonstandard_style)]
@@ -36,6 +49,7 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use surf::http_types::headers::HeaderName;
 use surf::http_types::Error as SurfError;
+use log::trace;
 pub use surf::url::Url;
 
 /// An event.
@@ -169,6 +183,7 @@ impl EventSource {
     }
 
     fn start_connect(&mut self) {
+        trace!(target: "surf-sse", "connecting to {}", self.url);
         let mut request = surf::get(&self.url).set_header(
             HeaderName::from_ascii(b"Accept".to_vec()).unwrap(),
             "text/event-stream",
@@ -184,10 +199,12 @@ impl EventSource {
     }
 
     fn start_retry(&mut self) {
+        trace!(target: "surf-sse", "connection to {}, retrying in {:?}", self.url, self.retry_time);
         self.state = ConnectState::WaitingToRetry(Delay::new(self.retry_time));
     }
 
     fn start_receiving(&mut self, response: surf::Response) {
+        trace!(target: "surf-sse", "connected to {}, now waiting for events", self.url);
         self.state = ConnectState::Streaming(sse_codec::decode_stream(response));
     }
 }
