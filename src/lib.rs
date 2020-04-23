@@ -34,8 +34,8 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use surf::http_types::Error as SurfError;
 use surf::http_types::headers::HeaderName;
+use surf::http_types::Error as SurfError;
 pub use surf::url::Url;
 
 /// An event.
@@ -170,11 +170,15 @@ impl EventSource {
 
     fn start_connect(&mut self) {
         let mut request = surf::get(&self.url).set_header(
-            HeaderName::from_ascii(b"Accept".to_vec()).unwrap(), "text/event-stream");
+            HeaderName::from_ascii(b"Accept".to_vec()).unwrap(),
+            "text/event-stream",
+        );
         // If the EventSource object's last event ID string is not the empty string, set `Last-Event-ID`/last event ID string, encoded as UTF-8, in request's header list.
         if let Some(id) = &self.last_event_id {
             request = request.set_header(
-                HeaderName::from_ascii(b"Last-Event-ID".to_vec()).unwrap(), id);
+                HeaderName::from_ascii(b"Last-Event-ID".to_vec()).unwrap(),
+                id,
+            );
         }
         self.state = ConnectState::Connecting(DynDebugFuture(Box::pin(request)));
     }
