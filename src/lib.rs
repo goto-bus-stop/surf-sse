@@ -34,6 +34,8 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
+use surf::http_types::Error as SurfError;
+use surf::http_types::headers::HeaderName;
 pub use surf::url::Url;
 
 /// An event.
@@ -70,7 +72,7 @@ pub enum Error {
     /// The connection was closed by the server. EventSource will reopen the connection.
     Retry,
     /// An error occurred while connecting to the endpoint. EventSource will retry the connection.
-    ConnectionError(surf::Exception),
+    ConnectionError(SurfError),
 }
 
 impl fmt::Display for Error {
@@ -101,7 +103,7 @@ impl<T> fmt::Debug for DynDebugFuture<T> {
 }
 
 type EventStream = sse_codec::DecodeStream<surf::Response>;
-type ConnectionFuture = DynDebugFuture<Result<surf::Response, surf::Exception>>;
+type ConnectionFuture = DynDebugFuture<Result<surf::Response, SurfError>>;
 
 /// Represents the internal state machine.
 #[derive(Debug)]
@@ -167,10 +169,12 @@ impl EventSource {
     }
 
     fn start_connect(&mut self) {
-        let mut request = surf::get(&self.url).set_header("Accept", "text/event-stream");
+        let mut request = surf::get(&self.url).set_header(
+            HeaderName::from_ascii(b"Accept".to_vec()).unwrap(), "text/event-stream");
         // If the EventSource object's last event ID string is not the empty string, set `Last-Event-ID`/last event ID string, encoded as UTF-8, in request's header list.
         if let Some(id) = &self.last_event_id {
-            request = request.set_header("Last-Event-ID", id);
+            request = request.set_header(
+                HeaderName::from_ascii(b"Last-Event-ID".to_vec()).unwrap(), id);
         }
         self.state = ConnectState::Connecting(DynDebugFuture(Box::pin(request)));
     }
