@@ -11,7 +11,7 @@ readme = "README.md"
 
 [dependencies]
 sse-codec = "0.3.0"
-surf = "= 2.0.0-alpha.3"
+surf = "= 2.0.0-alpha.4"
 futures-core = "0.3.4"
 futures-timer = "3.0.2"
 log = "0.4.8"
