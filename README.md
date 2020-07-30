@@ -1,7 +1,7 @@
 # surf-sse
 Server-Sent Event/Event Sourcing client using [`surf`](https://github.com/http-rs/surf).
 
-> **Note** This is not yet published to crates.io, pending the Surf 2.0 release.
+> surf-sse uses `surf@2.0.0-alpha.4`. surf-sse will release as 1.0 when Surf 2.0 is out.
 
 ## Documentation
 On [docs.rs](https://docs.rs/surf-sse).
@@ -10,7 +10,7 @@ On [docs.rs](https://docs.rs/surf-sse).
 In Cargo.toml:
 ```toml
 [dependencies]
-surf-sse = { git = "https://github.com/goto-bus-stop/surf-sse" }
+surf-sse = "= 1.0.0-alpha.0"
 ```
 
 ## License
