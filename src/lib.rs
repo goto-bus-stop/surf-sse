@@ -18,7 +18,7 @@
 //! use futures_util::stream::TryStreamExt; // for try_next()
 //! use surf_sse::EventSource;
 //!
-//! let mut events = EventSource::new(Url::parse("https://hub.u-wave.net/events").unwrap());
+//! let mut events = EventSource::new(Url::parse("https://announce.u-wave.net/events").unwrap());
 //!
 //! while let Some(message) = events.try_next().await.unwrap() {
 //!     dbg!(message);
