@@ -10,12 +10,22 @@ repository = "https://github.com/goto-bus-stop/surf-sse"
 documentation = "https://docs.rs/surf-sse"
 readme = "README.md"
 
+[features]
+# We disable default features for Surf and then re-enable them by default. This allows users to
+# disable default features in surf-sse, and use their custom Surf feature set in their own dependency on Surf.
+default = ["surf/default"]
+
 [dependencies]
 sse-codec = "0.3.0"
-surf = { version = "= 2.0.0-alpha.4", git = "https://github.com/fishrock123/surf", branch = "request-builder" }
 futures-core = "0.3.4"
 futures-timer = "3.0.2"
 log = "0.4.8"
+
+[dependencies.surf]
+version = "= 2.0.0-alpha.4"
+git = "https://github.com/fishrock123/surf"
+branch = "request-builder"
+default-features = false
 
 [dev-dependencies]
 async-std = "1.1.0"
