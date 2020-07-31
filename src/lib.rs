@@ -12,13 +12,12 @@
 //!
 //! # Examples
 //! ```rust,no_run
-//! # use surf::url::Url;
 //! # async_std::task::block_on(async move {
 //! #
 //! use futures_util::stream::TryStreamExt; // for try_next()
 //! use surf_sse::EventSource;
 //!
-//! let mut events = EventSource::new(Url::parse("https://announce.u-wave.net/events").unwrap());
+//! let mut events = EventSource::new("https://announce.u-wave.net/events".parse().unwrap());
 //!
 //! while let Some(message) = events.try_next().await.unwrap() {
 //!     dbg!(message);
@@ -48,9 +47,9 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use surf::http_types::headers::HeaderName;
-use surf::http_types::Error as SurfError;
+use surf::http::Method;
 pub use surf::url::Url;
+use surf::RequestBuilder;
 
 /// An event.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,7 +85,7 @@ pub enum Error {
     /// The connection was closed by the server. EventSource will reopen the connection.
     Retry,
     /// An error occurred while connecting to the endpoint. EventSource will retry the connection.
-    ConnectionError(SurfError),
+    ConnectionError(surf::Error),
 }
 
 impl fmt::Display for Error {
@@ -117,7 +116,7 @@ impl<T> fmt::Debug for DynDebugFuture<T> {
 }
 
 type EventStream = sse_codec::DecodeStream<surf::Response>;
-type ConnectionFuture = DynDebugFuture<Result<surf::Response, SurfError>>;
+type ConnectionFuture = DynDebugFuture<Result<surf::Response, surf::Error>>;
 
 /// Represents the internal state machine.
 #[derive(Debug)]
@@ -138,6 +137,7 @@ enum ConnectState {
 /// [EventSource]: https://developer.mozilla.org/en-US/docs/Web/API/EventSource
 #[derive(Debug)]
 pub struct EventSource {
+    client: surf::Client,
     url: Url,
     retry_time: Duration,
     last_event_id: Option<String>,
@@ -147,14 +147,20 @@ pub struct EventSource {
 impl EventSource {
     /// Create a new connection.
     pub fn new(url: Url) -> Self {
-        let mut client = Self {
+        Self::with_client(surf::client(), url)
+    }
+
+    /// Create a new connection.
+    pub fn with_client(client: surf::Client, url: Url) -> Self {
+        let mut event_source = Self {
+            client,
             url,
             retry_time: Duration::from_secs(3),
             last_event_id: None,
             state: ConnectState::Idle,
         };
-        client.start_connect();
-        client
+        event_source.start_connect();
+        event_source
     }
 
     /// Get the URL that this client connects to.
@@ -184,18 +190,13 @@ impl EventSource {
 
     fn start_connect(&mut self) {
         trace!(target: "surf-sse", "connecting to {}", self.url);
-        let mut request = surf::get(&self.url).set_header(
-            HeaderName::from_bytes(b"Accept".to_vec()).unwrap(),
-            "text/event-stream",
-        );
+        let mut request = RequestBuilder::new(Method::Get, self.url.clone())
+            .header("Accept", "text/event-stream");
         // If the EventSource object's last event ID string is not the empty string, set `Last-Event-ID`/last event ID string, encoded as UTF-8, in request's header list.
         if let Some(id) = &self.last_event_id {
-            request = request.set_header(
-                HeaderName::from_bytes(b"Last-Event-ID".to_vec()).unwrap(),
-                id.as_str(),
-            );
+            request = request.header("Last-Event-ID", id.as_str());
         }
-        self.state = ConnectState::Connecting(DynDebugFuture(Box::pin(request)));
+        self.state = ConnectState::Connecting(DynDebugFuture(Box::pin(self.client.send(request))));
     }
 
     fn start_retry(&mut self) {
@@ -267,5 +268,32 @@ impl Stream for EventSource {
 
             ConnectState::Idle => unreachable!(),
         }
+    }
+}
+
+/// Extension trait with event sourcing methods for Surf clients.
+///
+/// ```rust,no_run
+/// use surf_sse::ClientExt;
+/// use futures_util::stream::StreamExt; // for `.next`
+///
+/// # fn main() {
+/// let client = surf::client();
+/// let mut events = client.connect_event_source("https://announce.u-wave.net".parse().unwrap());
+/// async_std::task::block_on(async move {
+///     while let Some(event) = events.next().await {
+///         dbg!(event.unwrap());
+///     }
+/// });
+/// # }
+/// ```
+pub trait ClientExt {
+    /// Connect to an event sourcing / server-sent events endpoint.
+    fn connect_event_source(&self, url: Url) -> EventSource;
+}
+
+impl ClientExt for surf::Client {
+    fn connect_event_source(&self, url: Url) -> EventSource {
+        EventSource::with_client(self.clone(), url)
     }
 }
