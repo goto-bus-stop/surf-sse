@@ -146,6 +146,12 @@ pub struct EventSource {
 
 impl EventSource {
     /// Create a new connection.
+    ///
+    /// This constructor creates a new [`surf::Client`][] for the event sourcing connection. If you
+    /// already have a [`surf::Client`][], consider using [`EventSource::with_client`][].
+    ///
+    /// [`surf::Client`]: https://docs.rs/surf/2.x/surf/struct.Client.html
+    /// [`EventSource::with_client`]: #method.with_client
     pub fn new(url: Url) -> Self {
         Self::with_client(surf::client(), url)
     }
