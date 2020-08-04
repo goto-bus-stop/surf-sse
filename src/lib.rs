@@ -283,7 +283,6 @@ impl Stream for EventSource {
 /// use surf_sse::ClientExt;
 /// use futures_util::stream::StreamExt; // for `.next`
 ///
-/// # fn main() {
 /// let client = surf::client();
 /// let mut events = client.connect_event_source("https://announce.u-wave.net".parse().unwrap());
 /// async_std::task::block_on(async move {
@@ -291,7 +290,6 @@ impl Stream for EventSource {
 ///         dbg!(event.unwrap());
 ///     }
 /// });
-/// # }
 /// ```
 pub trait ClientExt {
     /// Connect to an event sourcing / server-sent events endpoint.
