@@ -262,7 +262,7 @@ impl Stream for EventSource {
                     Poll::Ready(Ok(response)) if response.status() == 204 => Poll::Ready(None),
                     Poll::Ready(Ok(response)) => {
                         self.start_receiving(response);
-                        Poll::Pending
+                        self.poll_next(cx)
                     }
                     Poll::Ready(Err(error)) => {
                         self.start_retry();
