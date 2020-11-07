@@ -47,9 +47,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use surf::http::Method;
-pub use surf::url::Url;
-use surf::RequestBuilder;
+pub use surf::Url;
 
 /// An event.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,7 +98,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 /// Wrapper for a dynamic Future type that adds an opaque Debug implementation.
-struct DynDebugFuture<T>(Pin<Box<dyn Future<Output = T> + Unpin>>);
+struct DynDebugFuture<T>(Pin<Box<dyn Future<Output = T>>>);
 impl<T> Future for DynDebugFuture<T> {
     type Output = T;
 
@@ -196,13 +194,16 @@ impl EventSource {
 
     fn start_connect(&mut self) {
         trace!(target: "surf-sse", "connecting to {}", self.url);
-        let mut request = RequestBuilder::new(Method::Get, self.url.clone())
-            .header("Accept", "text/event-stream");
+        let mut request = surf::get(self.url.clone()).header("Accept", "text/event-stream");
         // If the EventSource object's last event ID string is not the empty string, set `Last-Event-ID`/last event ID string, encoded as UTF-8, in request's header list.
         if let Some(id) = &self.last_event_id {
             request = request.header("Last-Event-ID", id.as_str());
         }
-        self.state = ConnectState::Connecting(DynDebugFuture(Box::pin(self.client.send(request))));
+
+        let client = self.client.clone();
+        let request_future = Box::pin(async move { client.send(request).await });
+
+        self.state = ConnectState::Connecting(DynDebugFuture(request_future));
     }
 
     fn start_retry(&mut self) {
