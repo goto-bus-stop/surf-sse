@@ -1,5 +1,16 @@
 //! An implementation of the [EventSource][] API using [Surf][].
 //!
+//! # Surf Cargo Features
+//! `surf-sse` wraps the [Surf][] library. By default, [`surf-sse`][surf-sse] uses the default
+//! [Surf][] features. If you are using a non-default Surf client implementation or feature set,
+//! you can disable [`surf-sse`][surf-sse]'s default feature:
+//! ```toml
+//! surf = { version = "*", features = ["hyper-client"] }
+//! surf-sse = { version = "*", default-features = false }
+//! ```
+//!
+//! This way, [`surf-sse`][surf-sse] will also use the "hyper-client" feature.
+//!
 //! # Logging
 //!
 //! [`surf-sse`][surf-sse] uses the [`log`][log] crate for some rudimentary connection logging. If you need to debug
