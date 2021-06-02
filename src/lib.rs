@@ -109,7 +109,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 /// Wrapper for a dynamic Future type that adds an opaque Debug implementation.
-struct DynDebugFuture<T>(Pin<Box<dyn Future<Output = T>>>);
+struct DynDebugFuture<T>(Pin<Box<dyn Future<Output = T> + Send>>);
 impl<T> Future for DynDebugFuture<T> {
     type Output = T;
 
